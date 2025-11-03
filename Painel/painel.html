@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Pedidos - Açaí & Amor</title>
+  
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Bibliotecas do PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    /* Estilos do painel (O mesmo de antes) */
+    body { background: #f0f0f0 !important; color: #333; font-family: system-ui, -apple-system, sans-serif; }
+    body::before { background: none !important; display: none !important; }
+    .painel-container { max-width: 900px; margin: 20px auto; padding: 0; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
+    h1 { text-align: center; color: #4a0072; margin: 15px 0; }
+    #status-conexao { text-align: center; padding: 10px; border-radius: 5px; font-weight: bold; color: white; margin: 15px; }
+    .status-conectado { background-color: #28a745; }
+    .status-erro { background-color: #dc3545; }
+    .painel-nav { display: flex; background-color: #f4f4f4; border-bottom: 1px solid #ddd; }
+    .painel-nav button { flex: 1; padding: 15px 10px; border: none; background: transparent; font-size: 1em; font-weight: 600; color: #777; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s ease; }
+    .painel-nav button:hover { background-color: #eee; }
+    .painel-nav button.active { color: #4a0072; border-bottom-color: #4a0072; }
+    .aba-container { padding: 10px 20px 20px; height: 70vh; overflow-y: auto; }
+    #resumo-container { display: none; }
+    .pedido-card { background: #fff; border: 2px solid #ccc; padding: 15px; margin-top: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .pedido-card[data-status="pendente"] { border-color: #dc3545; }
+    .pedido-card[data-status="em_preparo"] { border-color: #ffc107; }
+    .pedido-card[data-status="finalizado"] { border-color: #28a745; opacity: 0.8; }
+    .pedido-card h3 { margin-top: 0; font-size: 1.1em; text-align: left; }
+    .pedido-card h3.status-pendente { color: #dc3545; }
+    .pedido-card h3.status-em_preparo { color: #cc9a00; }
+    .pedido-card h3.status-finalizado { color: #28a745; }
+    .pedido-card ul { padding-left: 20px; font-size: 0.95em; }
+    .pedido-card .info { font-size: 0.9em; color: #555; }
+    .pedido-card .total { text-align: right; margin: 10px 0 0; font-weight: bold; font-size: 1.1em; color: #333; }
+    .botoes-acao { margin-top: 15px; display: flex; gap: 10px; }
+    .btn-acao { flex: 1; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 0.95em; font-weight: 600; transition: all 0.2s ease; }
+    .btn-aceitar { background-color: #28a745; color: white; }
+    .btn-finalizar { background-color: #007bff; color: white; }
+    .btn-imprimir { background-color: #777; color: white; }
+    .placeholder { text-align: center; color: #999; margin-top: 50px; font-style: italic; }
+    .pedido-card.compact { padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .pedido-card.compact:hover { background: #f9f9f9; }
+    .pedido-card.compact .compact-info { flex-grow: 1; }
+    .pedido-card.compact h3 { font-size: 1em; margin: 0 0 5px 0; }
+    .pedido-card.compact .info { font-size: 0.85em; margin: 0; }
+    .pedido-card.compact .compact-botoes { display: flex; flex-direction: column; gap: 8px; }
+    .pedido-card.compact .btn-acao { padding: 8px 12px; font-size: 0.85em; width: 120px; }
+    .modal-detalhe { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+    .modal-detalhe-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 10px; position: relative; }
+    .modal-detalhe-close { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .modal-detalhe-close:hover { color: #000; }
+    #detalhe-lista-itens { padding-left: 20px; font-size: 0.95em; }
+    #detalhe-lista-itens li { margin-bottom: 5px; }
+    
+    /* CSS PARA A ABA DE RESUMO (MODIFICADO) */
+    .resumo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+    .stat-card { background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; padding: 20px; text-align: center; }
+    .stat-card-title { font-size: 0.9em; font-weight: 600; color: var(--muted); margin: 0 0 10px 0; }
+    .stat-card-value { font-size: 1.8em; font-weight: 700; color: var(--brand-purple); }
+    .resumo-itens { margin-top: 20px; }
+    .resumo-itens h3 { border-bottom: 1px solid #eee; padding-bottom: 5px; }
+    .resumo-itens table { width: 100%; border-collapse: collapse; }
+    .resumo-itens th, .resumo-itens td { padding: 8px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    .resumo-itens th { font-weight: 600; }
+    .resumo-itens td.qtd { text-align: right; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <div class="painel-container">
+    <h1>Painel de Pedidos (Açaí & Amor)</h1>
+    <div id="status-conexao">Conectando ao Firebase...</div>
+    
+    <!-- Abas de Filtro -->
+    <nav class="painel-nav">
+      <button class="filtro-btn active" data-filtro="NOVOS">Novos</button>
+      <button class="filtro-btn" data-filtro="EM_PREPARO">Em Preparo</button>
+      <button class="filtro-btn" data-filtro="FINALIZADO">Finalizados</button>
+      <button class="filtro-btn" data-filtro="TUDO">Tudo</button>
+      <button class="filtro-btn" data-filtro="RESUMO">Resumo</button>
+    </nav>
+    
+    <!-- Container 1: Lista de Pedidos (Kanban) -->
+    <div id="lista-pedidos-container" class="aba-container">
+      <p class="placeholder">Aguardando novos pedidos...</p>
+    </div>
+
+    <!-- Container 2: Resumo (MODIFICADO) -->
+    <div id="resumo-container" class="aba-container" style="display: none;">
+      <h2>Resumo do Dia (8 AM - 5 AM)</h2>
+      
+      <!-- Cards de Estatísticas -->
+      <div class="resumo-grid">
+        <div class="stat-card">
+          <p class="stat-card-title">TOTAL DE PEDIDOS</p>
+          <p class="stat-card-value" id="resumo-total-pedidos">0</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-card-title">FATURAMENTO (SÓ ITENS)</p>
+          <p class="stat-card-value" id="resumo-total-faturado">R$ 0,00</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-card-title">TOTAL DE ENTREGAS</p>
+          <p class="stat-card-value" id="resumo-total-taxas">R$ 0,00</p>
+        </div>
+      </div>
+
+      <!-- Botão de Gerar PDF -->
+      <button id="btn-gerar-pdf" class="btn-primario" style="width: 100%; background: #007bff;">🖨️ Gerar PDF do Dia</button>
+
+      <!-- **** TABELA DE PRODUTOS **** -->
+      <div class="resumo-itens">
+        <h3>Produtos Vendidos</h3>
+        <table id="tabela-produtos-vendidos"> <!-- ID MUDADO -->
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th style="text-align: right;">Qtd.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="2"><p class="placeholder">Nenhum produto vendido ainda.</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- **** TABELA DE ADICIONAIS (NOVA) **** -->
+      <div class="resumo-itens" style="margin-top: 20px;">
+        <h3>Adicionais Vendidos</h3>
+        <table id="tabela-adicionais-vendidos"> <!-- ID NOVO -->
+          <thead>
+            <tr>
+              <th>Adicional</th>
+              <th style="text-align: right;">Qtd.</th>
+            </tr>
+          </thead>
+          <tbody>
+             <tr><td colspan="2"><p class="placeholder">Nenhum adicional vendido ainda.</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div> <!-- Fim #resumo-container -->
+
+  </div>
+
+  <!-- Div da Comanda de Impressão (continua escondida) -->
+  <div id="comanda-impressao" style="display: none;">
+    <h3 id="comanda-loja">Açaí & Amor</h3>
+    <p id="comanda-tipo"></p>
+    <ul id="comanda-lista"></ul>
+    <div id="comanda-total"></div>
+    <div class="comanda-info">
+      <strong id="comanda-cliente"></strong><br>
+      <span id="comanda-endereco"></span><br>
+      <span id="comanda-pagamento"></span><br>
+      <span id="comanda-obs-pagamento"></span>
+    </div>
+    <p style="text-align: center; font-size: 10px; margin-top: 15px;">
+      Pedido via Cardápio Digital
+    </p>
+  </div>
+  
+  <!-- Modal de Detalhe do Pedido (O mesmo de antes) -->
+  <div id="modal-detalhe-pedido" class="modal-detalhe">
+    <div class="modal-detalhe-content">
+      <span class="modal-detalhe-close" id="modal-detalhe-close">&times;</span>
+      <h2 id="detalhe-titulo" style="color: #4a0072; margin-top: 0;">Detalhes do Pedido</h2>
+      <p id="detalhe-info" style="font-size: 0.9em; color: #555;"></p>
+      <b>Itens:</b>
+      <ul id="detalhe-lista-itens"></ul>
+      <h3 id="detalhe-total" style="text-align: right; color: #dc3545;">Total: R$ 0,00</h3>
+      <div id="detalhe-botoes" class="botoes-acao"></div>
+    </div>
+  </div>
+
+  <!-- Scripts do Firebase e do Painel -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js" type="module"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js" type="module"></script>
+  
+  <script src="painel.js" type="module"></script>
+</body>
+</html>
+
