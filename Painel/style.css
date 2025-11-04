@@ -1266,7 +1266,7 @@ button:hover,
     padding: 0 !important; 
     
     /* 5. Define a largura real do conteúdo com margem de segurança */
-    width: 76mm !important; /* 76mm (para 2mm de margem de cada lado) */
+    width: 70mm !important; /* 76mm (para 2mm de margem de cada lado) */
     
     font-family: "Courier New", Courier, monospace;
     color: #000;
